@@ -56,7 +56,7 @@ def model_fn(features, labels, mode, params):
     is_training = (mode == tf.estimator.ModeKeys.TRAIN)
 
     images = features
-    color_channels = 3 if params.is_color else 1
+    color_channels = 3 if params.has_attr('is_color') and params.is_color else 1
     images = tf.reshape(images, [-1, params.image_size, params.image_size, color_channels])
     assert images.shape[1:] == [params.image_size, params.image_size, color_channels], "{}".format(images.shape)
 
@@ -76,7 +76,7 @@ def model_fn(features, labels, mode, params):
 
     # Define triplet loss
     if params.triplet_strategy == "batch_all":
-        loss, fraction, num_valid_triplets = batch_all_triplet_loss(labels, embeddings, margin=params.margin,
+        loss, fraction = batch_all_triplet_loss(labels, embeddings, margin=params.margin,
                                                 squared=params.squared)
     elif params.triplet_strategy == "batch_hard":
         loss = batch_hard_triplet_loss(labels, embeddings, margin=params.margin,
@@ -93,7 +93,6 @@ def model_fn(features, labels, mode, params):
 
         if params.triplet_strategy == "batch_all":
             eval_metric_ops['fraction_positive_triplets'] = tf.metrics.mean(fraction)
-            eval_metric_ops['num_valid_triplets'] = tf.metrics.mean(num_valid_triplets)
 
     if mode == tf.estimator.ModeKeys.EVAL:
         return tf.estimator.EstimatorSpec(mode, loss=loss, eval_metric_ops=eval_metric_ops)
@@ -103,7 +102,6 @@ def model_fn(features, labels, mode, params):
     tf.summary.scalar('loss', loss)
     if params.triplet_strategy == "batch_all":
         tf.summary.scalar('fraction_positive_triplets', fraction)
-        tf.summary.scalar('num_valid_triplets', num_valid_triplets)
 
     tf.summary.image('train_image', images, max_outputs=1)
 
