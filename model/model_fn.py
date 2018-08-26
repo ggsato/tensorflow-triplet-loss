@@ -56,7 +56,7 @@ def model_fn(features, labels, mode, params):
     is_training = (mode == tf.estimator.ModeKeys.TRAIN)
 
     images = features
-    color_channels = 3 if params.has_attr('is_color') and params.is_color else 1
+    color_channels = 3 if hasattr(params, 'is_color') and params.is_color else 1
     images = tf.reshape(images, [-1, params.image_size, params.image_size, color_channels])
     assert images.shape[1:] == [params.image_size, params.image_size, color_channels], "{}".format(images.shape)
 
