@@ -26,34 +26,25 @@ parser.add_argument('--model_dir', default='experiments/tracking_model',
 parser.add_argument('--sprite_filename', default='experiments/trackings_sprite.png',
                     help="Sprite image for the projector")
 
-def generate_sprite_image(sprite_filename, data_dir, eval_size, image_size, is_color):
+def generate_sprite_image(sprite_filename, data_dir, eval_size, image_size):
     print('generating a sprite image as {}'.format(sprite_filename))
     filenames, _ = read_image_files_and_labels(data_dir, eval_size, as_tf_constatns=False)
     dim_count = int(math.ceil(math.sqrt(eval_size)))
-    if is_color:
-        sprite_array = np.zeros([dim_count * image_size, dim_count * image_size, 3])
-        color_flag = cv2.IMREAD_COLOR
-    else:
-        sprite_array = np.zeros([dim_count * image_size, dim_count * image_size])
-        color_flag = cv2.IMREAD_GRAYSCALE
+    sprite_array = np.zeros([dim_count * image_size, dim_count * image_size, 3])
     row = 0
     col = 0
     for filename in filenames:
         #img = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)
-        img = cv2.imread(filename, color_flag)
+        img = cv2.imread(filename)
         fx = image_size / img.shape[1]
         fy = image_size / img.shape[0]
         resized = cv2.resize(img, None, fx=fx, fy=fy)
-        if is_color:
-            sprite_array[row * image_size:(row + 1) * image_size, col * image_size:(col + 1) * image_size, :] = resized
-        else:
-            sprite_array[row * image_size:(row + 1) * image_size, col * image_size:(col + 1) * image_size] = resized
+        sprite_array[row * image_size:(row + 1) * image_size, col * image_size:(col + 1) * image_size, :] = resized
 
         col += 1
         if col == dim_count:
             col = 0
             row += 1
-
 
     cv2.imwrite(sprite_filename, sprite_array)
 
@@ -98,7 +89,7 @@ if __name__ == '__main__':
     embedding.tensor_name = embedding_var.name
 
     # generate sprite image
-    generate_sprite_image(args.sprite_filename, args.data_dir, params.eval_size, params.image_size, params.is_color)
+    generate_sprite_image(args.sprite_filename, args.data_dir, params.eval_size, params.image_size)
 
     # Specify where you find the sprite (we will create this later)
     # Copy the embedding sprite image to the eval directory

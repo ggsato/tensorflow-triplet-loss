@@ -138,10 +138,9 @@ def _read_image_from_file(filename, label):
 
     """
 
-    global is_color
-
     image_string = tf.read_file(filename)
     image_decoded = tf.image.decode_jpeg(image_string, channels=0 if is_color else 1)
-    image_resized = tf.image.resize_images(image_decoded, [28, 28])
+    image_scaled = tf.divide(image_decoded, tf.constant(255, dtype=tf.uint8))
+    image_resized = tf.image.resize_images(image_scaled, [28, 28])
 
     return image_resized, label
