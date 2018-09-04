@@ -106,3 +106,8 @@ venv.bak/
 # ggsato
 cs230/
 data/mnist
+model.ckpt*
+events.out.tfevents*
+graph.pbtxt
+eval/
+checkpoint
