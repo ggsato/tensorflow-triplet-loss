@@ -4,7 +4,7 @@ import tensorflow as tf
 
 from model.triplet_loss import batch_all_triplet_loss
 from model.triplet_loss import batch_hard_triplet_loss
-
+from model.triplet_loss import distances
 
 def build_model(is_training, images, params):
     """Compute outputs of the model (embeddings for triplet loss).
@@ -69,7 +69,8 @@ def model_fn(features, labels, mode, params):
     tf.summary.scalar("embedding_mean_norm", embedding_mean_norm)
 
     if mode == tf.estimator.ModeKeys.PREDICT:
-        predictions = {'embeddings': embeddings}
+        from_distances = distances(embeddings, tf.transpose(embeddings), squared=params.squared)
+        predictions = {'from_distances': from_distances, 'embeddings': embeddings}
         return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
 
     labels = tf.cast(labels, tf.int64)
@@ -77,7 +78,7 @@ def model_fn(features, labels, mode, params):
     # Define triplet loss
     if params.triplet_strategy == "batch_all":
         loss, fraction, positive_mean_dist, negative_mean_dist = batch_all_triplet_loss(labels, embeddings, margin=params.margin,
-                                                squared=params.squared)
+                                                squared=params.squared, balanced=params.balanced)
     elif params.triplet_strategy == "batch_hard":
         loss = batch_hard_triplet_loss(labels, embeddings, margin=params.margin,
                                        squared=params.squared)

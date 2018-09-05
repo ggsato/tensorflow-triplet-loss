@@ -3,7 +3,7 @@
 import tensorflow as tf
 
 
-def _pairwise_distances(embeddings, squared=False):
+def _pairwise_distances(embeddings, squared=False, balanced=False):
     """Compute the 2D matrix of distances between all the embeddings.
 
     Args:
@@ -17,6 +17,49 @@ def _pairwise_distances(embeddings, squared=False):
     # Get the dot product between all embeddings
     # shape (batch_size, batch_size)
     dot_product = tf.matmul(embeddings, tf.transpose(embeddings))
+
+    # Get squared L2 norm for each embedding. We can just take the diagonal of `dot_product`.
+    # This also provides more numerical stability (the diagonal of the result will be exactly 0).
+    # shape (batch_size,)
+    square_norm = tf.diag_part(dot_product)
+
+    # Compute the pairwise distance matrix as we have:
+    # ||a - b||^2 = ||a||^2  - 2 <a, b> + ||b||^2
+    # shape (batch_size, batch_size)
+    distances = tf.expand_dims(square_norm, 1) - 2.0 * dot_product + tf.expand_dims(square_norm, 0)
+
+    # Because of computation errors, some distances might be negative so we put everything >= 0.0
+    min_value = 1e-16 if balanced else 0.0
+    distances = tf.maximum(distances, min_value)
+
+    if not squared:
+        # Because the gradient of sqrt is infinite when distances == 0.0 (ex: on the diagonal)
+        # we need to add a small epsilon where distances == 0.0
+        mask = tf.to_float(tf.equal(distances, 0.0))
+        distances = distances + mask * 1e-16
+
+        distances = tf.sqrt(distances)
+
+        # Correct the epsilon added: set the distances on the mask to be exactly 0.0
+        distances = distances * (1.0 - mask)
+
+    return distances
+
+def distances(from_embeddings, to_embeddings, squared=False):
+    """Compute the 2D matrix of distances between all the embeddings.
+
+    Args:
+        embeddings_from: tensor of shape (from_size, embed_dim)
+        embeddings_to: tensor of shape (to_size, embed_dim)
+        squared: Boolean. If true, output is the pairwise squared euclidean distance matrix.
+                 If false, output is the pairwise euclidean distance matrix.
+
+    Returns:
+        distances: tensor of shape (from_size, to_size)
+    """
+    # Get the dot product between all embeddings
+    # shape (batch_size, batch_size)
+    dot_product = tf.matmul(from_embeddings, to_embeddings)
 
     # Get squared L2 norm for each embedding. We can just take the diagonal of `dot_product`.
     # This also provides more numerical stability (the diagonal of the result will be exactly 0).
@@ -43,7 +86,6 @@ def _pairwise_distances(embeddings, squared=False):
         distances = distances * (1.0 - mask)
 
     return distances
-
 
 def _get_anchor_positive_triplet_mask(labels):
     """Return a 2D mask where mask[a, p] is True iff a and p are distinct and have same label.
@@ -119,7 +161,7 @@ def _get_triplet_mask(labels):
     return mask
 
 
-def batch_all_triplet_loss(labels, embeddings, margin, squared=False):
+def batch_all_triplet_loss(labels, embeddings, margin, squared=False, balanced=False):
     """Build the triplet loss over a batch of embeddings.
 
     We generate all the valid triplets and average the loss over the positive ones.
@@ -135,7 +177,7 @@ def batch_all_triplet_loss(labels, embeddings, margin, squared=False):
         triplet_loss: scalar tensor containing the triplet loss
     """
     # Get the pairwise distance matrix
-    pairwise_dist = _pairwise_distances(embeddings, squared=squared)
+    pairwise_dist = _pairwise_distances(embeddings, squared=squared, balanced=balanced)
 
     # shape (batch_size, batch_size, 1)
     anchor_positive_dist = tf.expand_dims(pairwise_dist, 2)
@@ -152,6 +194,12 @@ def batch_all_triplet_loss(labels, embeddings, margin, squared=False):
     # Uses broadcasting where the 1st argument has shape (batch_size, batch_size, 1)
     # and the 2nd (batch_size, 1, batch_size)
     triplet_loss = anchor_positive_dist - anchor_negative_dist + margin
+
+    if balanced:
+        # add two more loss elements to prevent distances from collapsing or exploding
+        loss_positive = anchor_positive_dist * margin
+        loss_negative = margin / anchor_negative_dist
+        triplet_loss += loss_positive + loss_negative
 
     # Put to zero the invalid triplets
     # (where label(a) != label(p) or label(n) == label(a) or a == p)

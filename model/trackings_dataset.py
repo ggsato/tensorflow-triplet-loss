@@ -14,6 +14,10 @@ def test(directory, eval_size, params):
     """tf.data.Dataset object for tracking test data."""
     return dataset(directory, eval_size, params)
 
+def predict(image0, image1, params):
+    """tf.data.Dataset object for tracking predict data"""
+    return prediction_dataset(image0, image1, params)
+
 def dataset(directory, train_or_eval_size, params):
     """ create a dataset from a directory """
 
@@ -144,3 +148,18 @@ def _read_image_from_file(filename, label):
     image_resized = tf.image.resize_images(image_scaled, [28, 28])
 
     return image_resized, label
+
+def prediction_dataset(image0, image1, params):
+    """ create a dataset from a directory """
+
+    global is_color
+    if params.is_color != is_color:
+        is_color = params.is_color
+
+    filenames = tf.constant([image0, image1])
+    labels = tf.constant(['N/A', 'N/A'])
+
+    dataset = tf.data.Dataset.from_tensor_slices((filenames, labels))
+    dataset = dataset.map(_read_image_from_file)
+
+    return dataset

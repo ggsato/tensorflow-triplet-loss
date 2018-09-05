@@ -10,9 +10,10 @@
     "embedding_size": 64,
     "triplet_strategy": "batch_all",
     "squared": false,
+    "balanced": true,
 
     "image_size": 28,
-    "is_color": false,
+    "is_color": true,
     "train_size": 2000000,
     "eval_size": 10000,
 
