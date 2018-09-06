@@ -240,13 +240,15 @@ def batch_hard_triplet_loss(labels, embeddings, margin, squared=False):
     # Get the pairwise distance matrix
     pairwise_dist = _pairwise_distances(embeddings, squared=squared)
 
+    # For each anchor, get the hardest positive
     anchor_positive_dist = _get_anchor_positive_distance(labels, pairwise_dist)
 
     # shape (batch_size, 1)
     hardest_positive_dist = tf.reduce_max(anchor_positive_dist, axis=1, keepdims=True)
     tf.summary.scalar("hardest_positive_dist", tf.reduce_mean(hardest_positive_dist))
 
-    anchor_negative_dist = _get_anchor_negative_distance(labels, pairwise_dist)
+    # For each anchor, get the hardest negative
+    anchor_negative_dist, max_anchor_negative_dist = _get_anchor_negative_distance(labels, pairwise_dist)
 
     # shape (batch_size,)
     hardest_negative_dist = tf.reduce_min(anchor_negative_dist, axis=1, keepdims=True)
@@ -263,13 +265,16 @@ def batch_hard_triplet_loss(labels, embeddings, margin, squared=False):
 def _get_mean_anchor_positive_distance(labels, pairwise_dist):
 
     anchor_positive_dist = _get_anchor_positive_distance(labels, pairwise_dist)
-    positive_mean_dist = tf.reduce_mean(anchor_positive_dist)
+
+    positive_positive_dist = tf.to_float(tf.greater(anchor_positive_dist, 0.0))
+    num_positive_positives = tf.reduce_sum(positive_positive_dist)
+
+    positive_mean_dist = tf.reduce_sum(anchor_positive_dist) / num_positive_positives
 
     return positive_mean_dist
 
 def _get_anchor_positive_distance(labels, pairwise_dist):
 
-    # For each anchor, get the hardest positive
     # First, we need to get a mask for every valid positive (they should have same label)
     mask_anchor_positive = _get_anchor_positive_triplet_mask(labels)
     mask_anchor_positive = tf.to_float(mask_anchor_positive)
@@ -281,14 +286,17 @@ def _get_anchor_positive_distance(labels, pairwise_dist):
 
 def _get_mean_anchor_negative_distance(labels, pairwise_dist):
 
-    anchor_negative_dist = _get_anchor_negative_distance(labels, pairwise_dist)
-    negative_mean_dist = tf.reduce_mean(anchor_negative_dist)
+    anchor_negative_dist, max_anchor_negative_dist = _get_anchor_negative_distance(labels, pairwise_dist)
+
+    positive_negative_dist = tf.to_float(tf.less(anchor_negative_dist, max_anchor_negative_dist))
+    num_positive_negatives = tf.reduce_sum(positive_negative_dist)
+
+    negative_mean_dist = tf.reduce_sum(anchor_negative_dist) / num_positive_negatives
 
     return negative_mean_dist
 
 def _get_anchor_negative_distance(labels, pairwise_dist):
 
-    # For each anchor, get the hardest negative
     # First, we need to get a mask for every valid negative (they should have different labels)
     mask_anchor_negative = _get_anchor_negative_triplet_mask(labels)
     mask_anchor_negative = tf.to_float(mask_anchor_negative)
@@ -297,4 +305,4 @@ def _get_anchor_negative_distance(labels, pairwise_dist):
     max_anchor_negative_dist = tf.reduce_max(pairwise_dist, axis=1, keepdims=True)
     anchor_negative_dist = pairwise_dist + max_anchor_negative_dist * (1.0 - mask_anchor_negative)
 
-    return anchor_negative_dist
+    return anchor_negative_dist, max_anchor_negative_dist

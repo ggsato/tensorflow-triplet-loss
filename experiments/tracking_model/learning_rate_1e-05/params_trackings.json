@@ -1,0 +1,19 @@
+{
+    "learning_rate": 1e-05,
+    "batch_size": 512,
+    "num_epochs": 5,
+    "num_channels": 32,
+    "use_batch_norm": false,
+    "bn_momentum": 0.9,
+    "margin": 0.5,
+    "embedding_size": 64,
+    "triplet_strategy": "batch_all",
+    "squared": false,
+    "balanced": true,
+    "image_size": 28,
+    "is_color": true,
+    "train_size": 2000000,
+    "eval_size": 10000,
+    "num_parallel_calls": 4,
+    "save_summary_steps": 50
+}
