@@ -111,3 +111,4 @@ events.out.tfevents*
 graph.pbtxt
 eval/
 checkpoint
+learning_rate*

@@ -10,7 +10,7 @@
     "embedding_size": 64,
     "triplet_strategy": "batch_all",
     "squared": false,
-    "balanced": true,
+    "balanced": false,
 
     "image_size": 28,
     "is_color": true,

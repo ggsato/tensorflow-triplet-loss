@@ -182,12 +182,12 @@ def batch_all_triplet_loss(labels, embeddings, margin, squared=False, balanced=F
     # shape (batch_size, batch_size, 1)
     anchor_positive_dist = tf.expand_dims(pairwise_dist, 2)
     assert anchor_positive_dist.shape[2] == 1, "{}".format(anchor_positive_dist.shape)
-    positive_mean_dist = _get_mean_anchor_positive_distance(labels, pairwise_dist)
+    positive_mean_dist, pos_std_dev = _get_mean_anchor_positive_distance(labels, pairwise_dist)
 
     # shape (batch_size, 1, batch_size)
     anchor_negative_dist = tf.expand_dims(pairwise_dist, 1)
     assert anchor_negative_dist.shape[1] == 1, "{}".format(anchor_negative_dist.shape)
-    negative_mean_dist = _get_mean_anchor_negative_distance(labels, pairwise_dist)
+    negative_mean_dist, neg_std_dev = _get_mean_anchor_negative_distance(labels, pairwise_dist)
 
     # Compute a 3D tensor of size (batch_size, batch_size, batch_size)
     # triplet_loss[i, j, k] will contain the triplet loss of anchor=i, positive=j, negative=k
@@ -219,7 +219,7 @@ def batch_all_triplet_loss(labels, embeddings, margin, squared=False, balanced=F
     # Get final mean triplet loss over the positive valid triplets
     triplet_loss = tf.reduce_sum(triplet_loss) / (num_positive_triplets + 1e-16)
 
-    return triplet_loss, fraction_positive_triplets, positive_mean_dist, negative_mean_dist
+    return triplet_loss, fraction_positive_triplets, positive_mean_dist, negative_mean_dist, pos_std_dev, neg_std_dev
 
 
 def batch_hard_triplet_loss(labels, embeddings, margin, squared=False):
@@ -271,7 +271,13 @@ def _get_mean_anchor_positive_distance(labels, pairwise_dist):
 
     positive_mean_dist = tf.reduce_sum(anchor_positive_dist) / num_positive_positives
 
-    return positive_mean_dist
+    # this makes 0 negative, so invalidate them
+    anchor_positive_dist_dev = anchor_positive_dist - positive_mean_dist
+    devs_squared = tf.square(tf.multiply(anchor_positive_dist_dev, positive_positive_dist))
+    mean_devs_squared = tf.reduce_sum(devs_squared) / num_positive_positives
+    std_dev = tf.sqrt(mean_devs_squared)
+
+    return positive_mean_dist, std_dev
 
 def _get_anchor_positive_distance(labels, pairwise_dist):
 
@@ -293,7 +299,13 @@ def _get_mean_anchor_negative_distance(labels, pairwise_dist):
 
     negative_mean_dist = tf.reduce_sum(anchor_negative_dist) / num_positive_negatives
 
-    return negative_mean_dist
+    # this makes 0 negative, so invalidate them
+    anchor_negative_dist_dev = anchor_negative_dist - negative_mean_dist
+    devs_squared = tf.square(tf.multiply(anchor_negative_dist_dev, positive_negative_dist))
+    mean_devs_squared = tf.reduce_sum(devs_squared) / num_positive_negatives
+    std_dev = tf.sqrt(mean_devs_squared)
+
+    return negative_mean_dist, std_dev
 
 def _get_anchor_negative_distance(labels, pairwise_dist):
 

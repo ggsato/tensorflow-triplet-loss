@@ -77,7 +77,7 @@ def model_fn(features, labels, mode, params):
 
     # Define triplet loss
     if params.triplet_strategy == "batch_all":
-        loss, fraction, positive_mean_dist, negative_mean_dist = batch_all_triplet_loss(labels, embeddings, margin=params.margin,
+        loss, fraction, positive_mean_dist, negative_mean_dist, pos_std_dev, neg_std_dev = batch_all_triplet_loss(labels, embeddings, margin=params.margin,
                                                 squared=params.squared, balanced=params.balanced)
     elif params.triplet_strategy == "batch_hard":
         loss = batch_hard_triplet_loss(labels, embeddings, margin=params.margin,
@@ -96,6 +96,8 @@ def model_fn(features, labels, mode, params):
             eval_metric_ops['fraction_positive_triplets'] = tf.metrics.mean(fraction)
             eval_metric_ops['positive_mean_dist'] = tf.metrics.mean(positive_mean_dist)
             eval_metric_ops['negative_mean_dist'] = tf.metrics.mean(negative_mean_dist)
+            eval_metric_ops['positive_std_dev'] = tf.metrics.mean(pos_std_dev)
+            eval_metric_ops['negative_std_dev'] = tf.metrics.mean(neg_std_dev)
 
     if mode == tf.estimator.ModeKeys.EVAL:
         return tf.estimator.EstimatorSpec(mode, loss=loss, eval_metric_ops=eval_metric_ops)
@@ -107,6 +109,8 @@ def model_fn(features, labels, mode, params):
         tf.summary.scalar('fraction_positive_triplets', fraction)
         tf.summary.scalar('positive_mean_dist', positive_mean_dist)
         tf.summary.scalar('negative_mean_dist', negative_mean_dist)
+        tf.summary.scalar('positive_std_dev', pos_std_dev)
+        tf.summary.scalar('negative_std_dev', neg_std_dev)
 
     tf.summary.image('train_image', images, max_outputs=1)
 
