@@ -2,6 +2,7 @@ import os, math
 from datetime import datetime
 
 import tensorflow as tf
+import numpy as np
 
 is_color = False
 
@@ -14,9 +15,9 @@ def test(directory, eval_size, params):
     """tf.data.Dataset object for tracking test data."""
     return dataset(directory, eval_size, params)
 
-def predict(image0, image1, params):
+def predict(images, params):
     """tf.data.Dataset object for tracking predict data"""
-    return prediction_dataset(image0, image1, params)
+    return prediction_dataset(images, params)
 
 def dataset(directory, train_or_eval_size, params):
     """ create a dataset from a directory """
@@ -149,15 +150,15 @@ def _read_image_from_file(filename, label):
 
     return image_resized, label
 
-def prediction_dataset(image0, image1, params):
+def prediction_dataset(images, params):
     """ create a dataset from a directory """
 
     global is_color
     if params.is_color != is_color:
         is_color = params.is_color
 
-    filenames = tf.constant([image0, image1])
-    labels = tf.constant(['N/A', 'N/A'])
+    filenames = tf.constant(images)
+    labels = tf.constant(np.ones((len(images))))
 
     dataset = tf.data.Dataset.from_tensor_slices((filenames, labels))
     dataset = dataset.map(_read_image_from_file)

@@ -41,14 +41,20 @@ class VehicleVerifer():
         self._params = params
         self._estimator = tf.estimator.Estimator(model_fn, params=self._params, config=config)
 
-    def verify(self, image0, image1):
-        
-        predictions = self._estimator.predict(lambda: predict_input_fn(image0, image1, self._params))
+        self._references = None
 
-        distance = next(predictions)['from_distances'][1]
-        print('distance between {} and {} = {}'.format(image0, image1, distance))
+    def verify(self, images):
 
-        return distance < self._id_threshold
+        predictions = self._estimator.predict(lambda: predict_input_fn(images, self._params))
+
+        embeddings_list = []
+        for prediction in predictions:
+            from_distances = prediction['from_distances']
+            print('from_distances = {}'.format(from_distances))
+            above_zero = from_distances > 0
+            below_threshold = from_distances < self._id_threshold
+            within_threshold = above_zero & below_threshold
+            print('within_threshold = {}'.format(within_threshold))
 
 class Errors(tornado.web.RequestHandler):
     def get(self):
@@ -65,38 +71,31 @@ class Upload(tornado.web.RequestHandler):
         global errors, vehicle_verifer
         message = ''
 
-        tmp0 = None
-        tmp1 = None
+        images = []
 
         try:
 
-            images = self.request.files['images']
+            files = self.request.files['images']
 
-            if len(images) != 2:
-                print('the number of images should be two for verification')
+            if len(files) < 2:
+                print('the number of images should be more than two for verification')
 
             else:
 
-                fileinfo0 = images[0]
-                fileinfo1 = images[1]
-                
-                print('type of fileinfo body = {}'.format(type(fileinfo0['body'])))
+                for i, fileinfo in enumerate(files):
+                    
+                    print('reading {}'.format(fileinfo['filename']))
 
-                img_byte0 = BytesIO(fileinfo0['body'])
-                image0 = cv2.imdecode(np.frombuffer(img_byte0.read(), dtype=np.uint8), cv2.IMREAD_COLOR)
+                    img_byte = BytesIO(fileinfo['body'])
+                    image = cv2.imdecode(np.frombuffer(img_byte.read(), dtype=np.uint8), cv2.IMREAD_COLOR)
 
-                tmp0 = os.path.join(__UPLOADS__, 'image0.jpg')
-                cv2.imwrite(tmp0, image0)
+                    tmp = os.path.join(__UPLOADS__, 'image{}.jpg'.format(i))
+                    cv2.imwrite(tmp, image)
 
-                img_byte1 = BytesIO(fileinfo1['body'])
-                image1 = cv2.imdecode(np.frombuffer(img_byte1.read(), dtype=np.uint8), cv2.IMREAD_COLOR)
-                tmp1 = os.path.join(__UPLOADS__, 'image1.jpg')
-                cv2.imwrite(tmp1, image1)
+                    images.append(tmp)
 
                 # verify
-                verified = vehicle_verifer.verify(tmp0, tmp1)
-
-                message = str(verified)
+                vehicle_verifer.verify(images)
 
         except:
             info = sys.exc_info()
@@ -105,11 +104,8 @@ class Upload(tornado.web.RequestHandler):
             errors += 1
         finally:
 
-            if tmp0 is not None:
-                os.remove(tmp0)
-
-            if tmp1 is not None:
-                os.remove(tmp1)
+            for tmp in images:
+                os.remove(tmp)
 
         self.finish(message)
 

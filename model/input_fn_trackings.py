@@ -32,10 +32,10 @@ def test_input_fn(data_dir, params):
     dataset = dataset.prefetch(1)  # make sure you always have one batch ready to serve
     return dataset
 
-def predict_input_fn(image0, image1, params):
+def predict_input_fn(images, params):
     """ Predict input function to compute a distance between image0 and image1
     """
-    dataset = trackings_dataset.predict(image0, image1, params)
-    dataset = dataset.batch(2)
+    dataset = trackings_dataset.predict(images, params)
+    dataset = dataset.batch(len(images))
     dataset = dataset.prefetch(1)
     return dataset

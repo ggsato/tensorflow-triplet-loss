@@ -34,7 +34,8 @@ if __name__ == '__main__':
     estimator = tf.estimator.Estimator(model_fn, params=params, config=config)
 
     # Train the model
-    predictions = estimator.predict(lambda: predict_input_fn(args.image0, args.image1, params))
+    images = [args.image0, args.image1]
+    predictions = estimator.predict(lambda: predict_input_fn(images, params))
 
     print('predictions = {}'.format(predictions))
     for pred_dict in predictions:
