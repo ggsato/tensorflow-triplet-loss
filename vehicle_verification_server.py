@@ -45,16 +45,41 @@ class VehicleVerifer():
 
     def verify(self, images):
 
+        # predictions is a generator
+        # predict is executed at the first next(predictions)
         predictions = self._estimator.predict(lambda: predict_input_fn(images, self._params))
 
-        embeddings_list = []
-        for prediction in predictions:
+        # TODO: this is an optimal assignment problem, so resolve by a Hungarian algorithm if necessary
+        identities = []
+        for p, prediction in enumerate(predictions):
+            # dict
+            print('prediction type = {}'.format(type(prediction)))
+            # numpy.ndarray
             from_distances = prediction['from_distances']
-            print('from_distances = {}'.format(from_distances))
+            print('from_distances = {}, shape={}, type = {}'.format(from_distances, from_distances.shape, type(from_distances)))
+            # numpy.ndarray
+            embeddings = prediction['embeddings']
+            print('embeddings shape = {}, type = {}'.format(embeddings.shape, type(embeddings)))
             above_zero = from_distances > 0
             below_threshold = from_distances < self._id_threshold
             within_threshold = above_zero & below_threshold
             print('within_threshold = {}'.format(within_threshold))
+            locations = np.where(within_threshold)
+            print('locations = {}'.format(locations))
+            if locations[0].size == 0:
+                print('{} has no identical object'.format(p))
+                identities.append(-1)
+                continue
+            min_location_in_locations = np.argmin(from_distances[locations])
+            print('min_location_in_locations = {}'.format(min_location_in_locations))
+            min_location = locations[0][min_location_in_locations]
+            print('min_location = {}'.format(min_location))
+            if min_location == p:
+                raise Exception('this is itself! this is not supposed to happen by assuming self similarity is zero')
+            print('{} has an identical object {} at {}'.format(p, from_distances[min_location], min_location))
+            identities.append(int(min_location))
+
+        return identities
 
 class Errors(tornado.web.RequestHandler):
     def get(self):
@@ -95,7 +120,9 @@ class Upload(tornado.web.RequestHandler):
                     images.append(tmp)
 
                 # verify
-                vehicle_verifer.verify(images)
+                identities = vehicle_verifer.verify(images)
+
+                message = json.dumps(identities)
 
         except:
             info = sys.exc_info()
