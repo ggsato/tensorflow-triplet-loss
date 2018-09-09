@@ -198,7 +198,8 @@ def batch_all_triplet_loss(labels, embeddings, margin, squared=False, balanced=F
     if balanced:
         # add two more loss elements to prevent distances from collapsing or exploding
         loss_positive = anchor_positive_dist * margin
-        loss_negative = margin / anchor_negative_dist
+        #loss_negative = margin / anchor_negative_dist
+        loss_negative = 0
         triplet_loss += loss_positive + loss_negative
 
     # Put to zero the invalid triplets
