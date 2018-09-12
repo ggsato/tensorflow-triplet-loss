@@ -3,6 +3,7 @@ from datetime import datetime
 
 import tensorflow as tf
 import numpy as np
+import cv2
 
 is_color = False
 
@@ -29,7 +30,7 @@ def dataset(directory, train_or_eval_size, params):
     filenames, labels = read_image_files_and_labels(directory, train_or_eval_size)
 
     dataset = tf.data.Dataset.from_tensor_slices((filenames, labels))
-    dataset = dataset.map(_read_image_from_file)
+    dataset = dataset.map(read_image_from_file)
 
     return dataset
 
@@ -130,7 +131,7 @@ def tracking_id_as_number(tracking_id):
 
     return tracking_id_number
 
-def _read_image_from_file(filename, label):
+def read_image_from_file(filename, label):
     """ returns a single sample with the given label by reading an image from a file
 
     Args:
@@ -161,6 +162,28 @@ def prediction_dataset(images, params):
     labels = tf.constant(np.ones((len(images))))
 
     dataset = tf.data.Dataset.from_tensor_slices((filenames, labels))
-    dataset = dataset.map(_read_image_from_file)
+    dataset = dataset.map(read_image_from_file)
 
     return dataset
+
+def predictor_dataset(images, params):
+    """ creates a feed for a predictor """
+    if params.is_color:
+        color_channels = 3
+        cv_ch = cv2.IMREAD_COLOR
+    else:
+        color_channels = 1
+        cv_ch = cv2.IMREAD_GRAYSCALE
+
+    image_arrays = []
+    for image in images:
+        img = cv2.imread(image, cv_ch)
+        if params.is_color:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        scale_x = params.image_size / img.shape[1]
+        scale_y = params.image_size / img.shape[0]
+        resized = cv2.resize(img, None, fx=scale_x, fy=scale_y, interpolation=cv2.INTER_AREA)
+        normalized = resized / 255
+        image_arrays.append(normalized)
+
+    return np.array(image_arrays)

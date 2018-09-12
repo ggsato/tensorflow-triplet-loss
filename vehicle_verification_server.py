@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 import sys
@@ -6,6 +5,7 @@ import time
 import os
 import json
 import traceback
+import shutil
 
 import tornado
 import tornado.ioloop
@@ -18,7 +18,6 @@ import numpy as np
 import logging
 
 import argparse
-import os
 
 import tensorflow as tf
 
@@ -30,7 +29,7 @@ __UPLOADS__ = "/dev/shm/vefifer/uploads/"
 if not os.path.exists(__UPLOADS__):
     os.makedirs(__UPLOADS__)
 
-class VehicleVerifer():
+class VehicleVerifier():
     def __init__(self, model_dir, id_threshold, params):
 
         # Define the model
@@ -47,37 +46,52 @@ class VehicleVerifer():
 
         # predictions is a generator
         # predict is executed at the first next(predictions)
+        start = time.time()
         predictions = self._estimator.predict(lambda: predict_input_fn(images, self._params))
+        print('estimator predicted in {}ms'.format(time.time() - start))
 
         # TODO: this is an optimal assignment problem, so resolve by a Hungarian algorithm if necessary
         identities = []
         for p, prediction in enumerate(predictions):
             # dict
-            print('prediction type = {}'.format(type(prediction)))
+            #print('prediction type = {}'.format(type(prediction)))
             # numpy.ndarray
             from_distances = prediction['from_distances']
-            print('from_distances = {}, shape={}, type = {}'.format(from_distances, from_distances.shape, type(from_distances)))
+            #print('from_distances = {}, shape={}, type = {}'.format(from_distances, from_distances.shape, type(from_distances)))
             # numpy.ndarray
             embeddings = prediction['embeddings']
-            print('embeddings shape = {}, type = {}'.format(embeddings.shape, type(embeddings)))
+            #print('embeddings shape = {}, type = {}'.format(embeddings.shape, type(embeddings)))
             above_zero = from_distances > 0
             below_threshold = from_distances < self._id_threshold
             within_threshold = above_zero & below_threshold
-            print('within_threshold = {}'.format(within_threshold))
+            #print('within_threshold = {}'.format(within_threshold))
             locations = np.where(within_threshold)
-            print('locations = {}'.format(locations))
+            #print('locations = {}'.format(locations))
             if locations[0].size == 0:
                 print('{} has no identical object'.format(p))
                 identities.append(-1)
                 continue
             min_location_in_locations = np.argmin(from_distances[locations])
-            print('min_location_in_locations = {}'.format(min_location_in_locations))
+            #print('min_location_in_locations = {}'.format(min_location_in_locations))
             min_location = locations[0][min_location_in_locations]
-            print('min_location = {}'.format(min_location))
+            #print('min_location = {}'.format(min_location))
             if min_location == p:
                 raise Exception('this is itself! this is not supposed to happen by assuming self similarity is zero')
             print('{} has an identical object {} at {}'.format(p, from_distances[min_location], min_location))
+
+            # for debug
+            debug = False
+            if debug:
+                folder = os.path.join(__UPLOADS__, '{}-{}_{}'.format(p, min_location, from_distances[min_location]))
+                os.makedirs(folder)
+                img0_path = os.path.join(folder, '{}.jpg'.format(p))
+                shutil.copyfile(images[p], img0_path)
+                img1_path = os.path.join(folder, '{}-ref.jpg'.format(min_location))
+                shutil.copyfile(images[min_location], img1_path)
+
             identities.append(int(min_location))
+
+        print('identities verified in {}ms'.format(time.time() - start))
 
         return identities
 
@@ -93,7 +107,7 @@ class Userform(tornado.web.RequestHandler):
 
 class Upload(tornado.web.RequestHandler):
     def post(self):
-        global errors, vehicle_verifer
+        global errors, vehicle_verifier
         message = ''
 
         images = []
@@ -120,7 +134,7 @@ class Upload(tornado.web.RequestHandler):
                     images.append(tmp)
 
                 # verify
-                identities = vehicle_verifer.verify(images)
+                identities = vehicle_verifier.verify(images)
 
                 message = json.dumps(identities)
 
@@ -143,7 +157,7 @@ application = tornado.web.Application([
         ], debug=True)
 
 errors = 0
-vehicle_verifer = None
+vehicle_verifier = None
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -171,7 +185,7 @@ if __name__ == '__main__':
 
     id_threshold = float(args.id_threshold)
 
-    vehicle_verifer = VehicleVerifer(args.model_dir, id_threshold, params)
+    vehicle_verifier = VehicleVerifier(args.model_dir, id_threshold, params)
 
     # start loop
     print('starting tornado loop...')

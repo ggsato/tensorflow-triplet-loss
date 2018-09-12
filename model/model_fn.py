@@ -55,7 +55,10 @@ def model_fn(features, labels, mode, params):
     """
     is_training = (mode == tf.estimator.ModeKeys.TRAIN)
 
-    images = features
+    if mode == tf.estimator.ModeKeys.PREDICT:
+        images = features['images']
+    else:
+        images = features
     color_channels = 3 if hasattr(params, 'is_color') and params.is_color else 1
     images = tf.reshape(images, [-1, params.image_size, params.image_size, color_channels])
     assert images.shape[1:] == [params.image_size, params.image_size, color_channels], "{}".format(images.shape)
@@ -71,7 +74,8 @@ def model_fn(features, labels, mode, params):
     if mode == tf.estimator.ModeKeys.PREDICT:
         from_distances = distances(embeddings, tf.transpose(embeddings), squared=params.squared)
         predictions = {'from_distances': from_distances, 'embeddings': embeddings}
-        return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
+        predictions_output = tf.estimator.export.PredictOutput(predictions)
+        return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions, export_outputs={tf.saved_model.signature_constants.DEFAULT_SERVING_SIGNATURE_DEF_KEY: predictions_output})
 
     labels = tf.cast(labels, tf.int64)
 

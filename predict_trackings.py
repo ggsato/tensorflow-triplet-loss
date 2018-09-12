@@ -5,7 +5,7 @@ import os
 
 import tensorflow as tf
 
-from model.input_fn_trackings import predict_input_fn
+from model.trackings_dataset import predictor_dataset
 from model.model_fn import model_fn
 from model.utils import Params
 
@@ -33,11 +33,18 @@ if __name__ == '__main__':
                                     model_dir=args.model_dir)
     estimator = tf.estimator.Estimator(model_fn, params=params, config=config)
 
-    # Train the model
-    images = [args.image0, args.image1]
-    predictions = estimator.predict(lambda: predict_input_fn(images, params))
+    # predict with the model
+    def serving_input_receiver_fn():
+        features = {'images': tf.placeholder(dtype=tf.float32, shape=[None, 28, 28, 3], name='images')}
+        return tf.estimator.export.ServingInputReceiver(features=features, receiver_tensors=features)
 
-    print('predictions = {}'.format(predictions))
-    for pred_dict in predictions:
-        for key in pred_dict:
-            print('{} = {}'.format(key, pred_dict[key]))
+    predictor = tf.contrib.predictor.from_estimator(estimator, serving_input_receiver_fn) 
+
+    images = predictor_dataset([args.image0, args.image1], params)
+
+    predictions = predictor({'images': images})
+
+    embeddings = predictions['embeddings']
+    from_distances = predictions['from_distances']
+
+    print('from_distances = {}'.format(from_distances))
