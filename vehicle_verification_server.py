@@ -21,13 +21,17 @@ import argparse
 
 import tensorflow as tf
 
-from model.input_fn_trackings import predict_input_fn
+from model.trackings_dataset import predictor_dataset
 from model.model_fn import model_fn
 from model.utils import Params
 
 __UPLOADS__ = "/dev/shm/vefifer/uploads/"
 if not os.path.exists(__UPLOADS__):
     os.makedirs(__UPLOADS__)
+
+def serving_input_receiver_fn():
+    features = {'images': tf.placeholder(dtype=tf.float32, shape=[None, 28, 28, 3], name='images')}
+    return tf.estimator.export.ServingInputReceiver(features=features, receiver_tensors=features)
 
 class VehicleVerifier():
     def __init__(self, model_dir, id_threshold, params):
@@ -38,7 +42,8 @@ class VehicleVerifier():
                                         model_dir=model_dir)
         self._id_threshold = id_threshold
         self._params = params
-        self._estimator = tf.estimator.Estimator(model_fn, params=self._params, config=config)
+        estimator = tf.estimator.Estimator(model_fn, params=self._params, config=config)
+        self._predictor =  tf.contrib.predictor.from_estimator(estimator, serving_input_receiver_fn) 
 
         self._references = None
 
@@ -47,20 +52,18 @@ class VehicleVerifier():
         # predictions is a generator
         # predict is executed at the first next(predictions)
         start = time.time()
-        predictions = self._estimator.predict(lambda: predict_input_fn(images, self._params))
-        print('estimator predicted in {}ms'.format(time.time() - start))
+        #predictions = self._estimator.predict(lambda: predict_input_fn(images, self._params))
+        image_arrays = predictor_dataset(images, params)
+        predictions = self._predictor({'images': image_arrays})
+        print('predictor predicted in {}ms'.format(time.time() - start))
 
         # TODO: this is an optimal assignment problem, so resolve by a Hungarian algorithm if necessary
         identities = []
-        for p, prediction in enumerate(predictions):
-            # dict
-            #print('prediction type = {}'.format(type(prediction)))
-            # numpy.ndarray
-            from_distances = prediction['from_distances']
-            #print('from_distances = {}, shape={}, type = {}'.format(from_distances, from_distances.shape, type(from_distances)))
-            # numpy.ndarray
-            embeddings = prediction['embeddings']
-            #print('embeddings shape = {}, type = {}'.format(embeddings.shape, type(embeddings)))
+        from_distances_list = predictions['from_distances']
+        embeddings_list = predictions['embeddings']
+        print('from_distances_list shape = {}'.format(from_distances_list.shape))
+        print('embeddings_list shape = {}'.format(embeddings_list.shape))
+        for p, from_distances in enumerate(from_distances_list):
             above_zero = from_distances > 0
             below_threshold = from_distances < self._id_threshold
             within_threshold = above_zero & below_threshold
